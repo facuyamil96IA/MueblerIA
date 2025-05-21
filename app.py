@@ -1,18 +1,21 @@
+import firebase_admin
+from firebase_admin import credentials, firestore
 from flask import Flask, render_template, request, redirect, url_for, session
-from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
 
+# Inicializar la aplicación Flask
 app = Flask(__name__)
 app.secret_key = "supersecretkey"
 
-# Configuración de base de datos en Render
-app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://muebleria_db_user:yZFvN1VuJq0lU9Y7f2KFSUuIT56ryXta@dpg-d0mg7ejuibrs73emgc6g-a/muebleria_db'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+# Inicializar Firebase con credenciales JSON
+cred = credentials.Certificate("red.json")
+firebase_admin.initialize_app(cred)
+db = firestore.client()
 
-db = SQLAlchemy(app)
-
+# Código de acceso
 ACCESS_CODE = "39776041F"
 
+# ---------------- AUTENTICACIÓN ----------------
 @app.route("/", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
@@ -30,42 +33,44 @@ def home():
         return redirect(url_for("login"))
     return render_template("home.html")
 
+# ---------------- INVENTARIO ----------------
 @app.route("/inventario", methods=["GET", "POST"])
 def inventario():
     if not session.get("authenticated"):
         return redirect(url_for("login"))
-    
-    productos = Producto.query.all()
+
+    productos_ref = db.collection("productos").stream()
+    productos = [producto.to_dict() for producto in productos_ref]
+
     return render_template("inventario.html", productos=productos)
 
 @app.route("/agregar-producto", methods=["POST"])
 def agregar_producto():
     if not session.get("authenticated"):
         return redirect(url_for("login"))
-    
-    nombre = request.form.get("nombre")
-    descripcion = request.form.get("descripcion")
-    costo = float(request.form.get("costo"))
-    precio_venta = float(request.form.get("precio_venta"))
-    stock = int(request.form.get("stock"))
-    proveedor = request.form.get("proveedor")
-    url_imagen = request.form.get("url_imagen")
 
-    nuevo_producto = Producto(nombre=nombre, descripcion=descripcion, costo=costo,
-                              precio_venta=precio_venta, stock_disponible=stock, 
-                              proveedor=proveedor, url_imagen=url_imagen)
+    producto_data = {
+        "nombre": request.form.get("nombre"),
+        "descripcion": request.form.get("descripcion"),
+        "costo": float(request.form.get("costo")),
+        "precio_venta": float(request.form.get("precio_venta")),
+        "stock_disponible": int(request.form.get("stock")),
+        "proveedor": request.form.get("proveedor"),
+        "url_imagen": request.form.get("url_imagen"),
+    }
 
-    db.session.add(nuevo_producto)
-    db.session.commit()
+    db.collection("productos").add(producto_data)
 
     return redirect(url_for("inventario"))
 
+# ---------------- REGISTRAR COMPRA ----------------
 @app.route("/registrar-compra", methods=["GET", "POST"])
 def registrar_compra():
     if not session.get("authenticated"):
         return redirect(url_for("login"))
 
-    productos = Producto.query.all()
+    productos_ref = db.collection("productos").stream()
+    productos = [producto.to_dict() for producto in productos_ref]
 
     if request.method == "POST":
         nombre = request.form.get("nombre")
@@ -75,29 +80,39 @@ def registrar_compra():
         modo_pago = request.form.get("modo_pago")
         bonificacion = float(request.form.get("bonificacion"))
 
-        producto = Producto.query.filter_by(nombre=producto_seleccionado).first()
-        precio_final = producto.precio_venta - bonificacion
+        producto_ref = db.collection("productos").where("nombre", "==", producto_seleccionado).stream()
+        producto = next(producto_ref, None)
 
-        if modo_pago == "Tarjeta":
-            precio_final *= 1.3
+        if producto:
+            precio_final = producto.get("precio_venta") - bonificacion
+            if modo_pago == "Tarjeta":
+                precio_final *= 1.3
 
-        nuevo_cliente = Cliente(nombre=nombre, direccion=direccion, celular=celular,
-                                fecha=datetime.now(), productos=producto_seleccionado,
-                                modo_pago=modo_pago, bonificacion=bonificacion, total=precio_final)
+            cliente_data = {
+                "nombre": nombre,
+                "direccion": direccion,
+                "celular": celular,
+                "fecha": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "producto": producto_seleccionado,
+                "modo_pago": modo_pago,
+                "bonificacion": bonificacion,
+                "total": precio_final,
+            }
 
-        db.session.add(nuevo_cliente)
-        db.session.commit()
+            db.collection("clientes").add(cliente_data)
 
         return redirect(url_for("home"))
 
     return render_template("registrar_compra.html", productos=productos)
 
+# ---------------- REGISTRAR COMPRA CON CUOTAS ----------------
 @app.route("/registrar-cuotas", methods=["GET", "POST"])
 def registrar_cuotas():
     if not session.get("authenticated"):
         return redirect(url_for("login"))
 
-    productos = Producto.query.all()
+    productos_ref = db.collection("productos").stream()
+    productos = [producto.to_dict() for producto in productos_ref]
 
     if request.method == "POST":
         nombre = request.form.get("nombre")
@@ -107,20 +122,31 @@ def registrar_cuotas():
         plan = int(request.form.get("plan"))
         cuotas_pagas = 0
 
-        precio_total = sum([Producto.query.filter_by(nombre=p).first().precio_venta for p in productos_seleccionados])
+        precio_total = sum(
+            [producto.get("precio_venta") for producto in productos if producto["nombre"] in productos_seleccionados]
+        )
         valor_cuotas = precio_total / plan
         cuotas_restantes = plan
 
-        nuevo_cliente_cuotas = ClienteCuotas(nombre=nombre, direccion=direccion, celular=celular,
-                                             fecha=datetime.now(), productos=", ".join(productos_seleccionados),
-                                             plan=plan, valor_cuotas=valor_cuotas,
-                                             cuotas_pagas=cuotas_pagas, cuotas_restantes=cuotas_restantes,
-                                             saldo=precio_total)
+        cliente_cuotas_data = {
+            "nombre": nombre,
+            "direccion": direccion,
+            "celular": celular,
+            "fecha": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "productos": productos_seleccionados,
+            "plan": plan,
+            "valor_cuotas": valor_cuotas,
+            "cuotas_pagas": cuotas_pagas,
+            "cuotas_restantes": cuotas_restantes,
+            "saldo": precio_total,
+        }
 
-        db.session.add(nuevo_cliente_cuotas)
-        db.session.commit()
+        db.collection("clientes_cuotas").add(cliente_cuotas_data)
 
         return redirect(url_for("home"))
 
     return render_template("registrar_cuotas.html", productos=productos)
 
+# ---------------- EJECUCIÓN ----------------
+if __name__ == "__main__":
+    app.run(debug=True)
