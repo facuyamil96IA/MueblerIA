@@ -22,10 +22,9 @@
         <h2 class="mt-4">Lista de Productos</h2>
         <ul class="list-group">
             {% for producto in productos %}
-                <li class="list-group-item">{{ producto.nombre }} - ${{ producto.precio_venta }}</li>
+                <li class="list-group-item">{{ producto['nombre'] }} - ${{ producto['precio_venta'] }}</li>
             {% endfor %}
         </ul>
     </div>
 </body>
 </html>
-
