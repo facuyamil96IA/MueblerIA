@@ -6,7 +6,7 @@ app = Flask(__name__)
 app.secret_key = "supersecretkey"
 
 # Configuración de base de datos en Render
-app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://muebleria_db_user:yZFvN1VuJq0lU9Y7f2KFSUuIT56ryXta@dpg-d0mg7ejuibrs73emgc6g-a.oregon-postgres.render.com/muebleria_db'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://muebleria_db_user:yZFvN1VuJq0lU9Y7f2KFSUuIT56ryXta@dpg-d0mg7ejuibrs73emgc6g-a/muebleria_db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
