@@ -14,7 +14,7 @@
             <input type="text" name="celular" placeholder="Celular" class="form-control mb-2" required>
             <select name="productos" multiple class="form-select mb-2">
                 {% for producto in productos %}
-                    <option value="{{ producto.nombre }}">{{ producto.nombre }} - ${{ producto.precio_venta }}</option>
+                    <option value="{{ producto['nombre'] }}">{{ producto['nombre'] }} - ${{ producto['precio_venta'] }}</option>
                 {% endfor %}
             </select>
             <select name="plan" class="form-select mb-2">
