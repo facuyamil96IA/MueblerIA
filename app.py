@@ -10,8 +10,12 @@ app.secret_key = "supersecretkey"
 
 # Inicializar Firebase con credenciales JSON
 cred = credentials.Certificate("muebleria-e02f9-firebase-adminsdk-fbsvc-c5628a574d.json")
-firebase_admin.initialize_app(cred)
+
 db = firestore.client()
+firebase_admin.initialize_app(cred, {
+    'databaseURL': 'https://MueblerIA.firebaseio.com',
+    'timeout': 60  # Reduce el timeout para evitar bloqueos
+})
 
 # Código de acceso
 ACCESS_CODE = "39776041F"
