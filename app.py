@@ -148,5 +148,8 @@ def registrar_cuotas():
     return render_template("registrar_cuotas.html", productos=productos)
 
 # ---------------- EJECUCIÓN ----------------
-if __name__ == "__main__":
+port = int(os.getenv("PORT", 5000))
+
+if __name__ == '__main__':
+    app.run(host="0.0.0.0", port=port)
     app.run(debug=True)
